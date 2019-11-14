@@ -72,6 +72,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         protected void onPreExecute() {
             super.onPreExecute();
+            // Set loading indicator visible as data load
             mLoadingIndicator.setVisibility(View.VISIBLE);
         }
 
