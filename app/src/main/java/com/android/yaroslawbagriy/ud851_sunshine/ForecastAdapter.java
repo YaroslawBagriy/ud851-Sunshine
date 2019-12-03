@@ -9,7 +9,7 @@ import android.widget.TextView;
 import androidx.recyclerview.widget.RecyclerView;
 
 
-/**
+/** 
  * {@link ForecastAdapter} exposes a list of weather forecasts to a
  * {@link androidx.recyclerview.widget.RecyclerView}
  */
