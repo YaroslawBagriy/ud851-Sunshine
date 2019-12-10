@@ -8,8 +8,11 @@ import com.android.yaroslawbagriy.ud851_sunshine.utilities.NetworkUtils;
 import com.android.yaroslawbagriy.ud851_sunshine.utilities.OpenWeatherJsonUtils;
 
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -27,6 +30,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 public class MainActivity extends AppCompatActivity implements ForecastAdapter.ForecastAdapterOnClickHandler {
+
+    private static final String TAG = MainActivity.class.getSimpleName();
 
     private RecyclerView mRecyclerView;
 
@@ -107,8 +112,11 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
     @Override
     public void onClick(String weatherForDay) {
         Context context = this;
-        Toast.makeText(context, weatherForDay, Toast.LENGTH_SHORT)
-                .show();
+
+        Class destinationClass = DetailActivity.class;
+        Intent intentToStartDetailActivity = new Intent(context, destinationClass);
+        intentToStartDetailActivity.putExtra(Intent.EXTRA_TEXT, weatherForDay);
+        startActivity(intentToStartDetailActivity);
     }
 
     /**
@@ -185,6 +193,31 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
         }
     }
 
+    /**
+     * This method uses the URI scheme for showing a location found on a
+     * map. This super-handy intent is detailed in the "Common Intents"
+     * page of Android's developer site:
+     *
+     * @see <a"http://developer.android.com/guide/components/intents-common.html#Maps">
+     *
+     * Hint: Hold Command on Mac or Control on Windows and click that link
+     * to automagically open the Common Intents page
+     */
+    private void openLocationInMap() {
+        String addressString = "1600 Ampitheatre Parkway, CA";
+        Uri geoLocation = Uri.parse("geo:0,0?q=" + addressString);
+
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setData(geoLocation);
+
+        if (intent.resolveActivity(getPackageManager()) != null) {
+            startActivity(intent);
+        } else {
+            Log.d(TAG, "Couldn't call " + geoLocation.toString()
+                    + ", no receiving apps installed!");
+        }
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         /* Use AppCompatActivity's method getMenuInflater to get a handle on the menu inflater */
@@ -202,6 +235,11 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
         if (id == R.id.action_refresh) {
             mForecastAdapter.setWeatherData(null);
             loadWeatherData();
+            return true;
+        }
+
+        if (id == R.id.action_map) {
+            openLocationInMap();
             return true;
         }
 

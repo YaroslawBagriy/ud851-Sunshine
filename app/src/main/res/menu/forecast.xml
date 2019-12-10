@@ -12,4 +12,10 @@
         android:orderInCategory="1"
         android:title="@string/action_refreshed"
         app:showAsAction="ifRoom"/>
+
+    <item
+        android:id="@+id/action_map"
+        android:title="@string/action_map"
+        app:showAsAction="never" />
+
 </menu>
