@@ -26,10 +26,14 @@ import org.json.JSONException;
 import java.io.IOException;
 import java.net.URL;
 
+import androidx.loader.app.LoaderManager;
+import androidx.loader.content.AsyncTaskLoader;
+import androidx.loader.content.Loader;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
-public class MainActivity extends AppCompatActivity implements ForecastAdapter.ForecastAdapterOnClickHandler {
+public class MainActivity extends AppCompatActivity implements ForecastAdapter.ForecastAdapterOnClickHandler,
+        LoaderManager.LoaderCallbacks<String[]> {
 
     private static final String TAG = MainActivity.class.getSimpleName();
 
@@ -41,9 +45,31 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
 
     private ProgressBar mLoadingIndicator;
 
+    private static final int FORECAST_LOADER_ID = 0;
+
+    /* Constant values for the names of each respective lifecycle callback */
+    private static final String ON_CREATE = "onCreate";
+    private static final String ON_START = "onStart";
+    private static final String ON_RESUME = "onResume";
+    private static final String ON_PAUSE = "onPause";
+    private static final String ON_STOP = "onStop";
+    private static final String ON_RESTART = "onRestart";
+    private static final String ON_DESTROY = "onDestroy";
+    private static final String ON_SAVE_INSTANCE_STATE = "onSaveInstanceState";
+
+    /**
+     * Called when the activity is first created. This is where you should do all of your normal
+     * static set up: create views, bind data to lists, etc.
+     *
+     * Always followed by onStart().
+     *
+     * @param savedInstanceState The Activity's previously frozen state, if there was one.
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        logAndAppend(ON_CREATE);
+
         setContentView(R.layout.activity_forecast);
 
         /*
@@ -89,18 +115,182 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
          */
         mLoadingIndicator = (ProgressBar) findViewById(R.id.pb_loading_indicator);
 
-        // Load weather data once all the views have been loaded
-        loadWeatherData();
+        /*
+         * This ID will uniquely identify the Loader. We can use it, for example, to get a handle
+         * on our Loader at a later point in time through the support LoaderManager.
+         */
+        int loaderId = FORECAST_LOADER_ID;
+
+        /*
+         * From MainActivity, we have implemented the LoaderCallbacks interface with the type of
+         * String array. (implements LoaderCallbacks<String[]>) The variable callback is passed
+         * to the call to initLoader below. This means that whenever the loaderManager has
+         * something to notify us of, it will do so through this callback.
+         */
+        LoaderManager.LoaderCallbacks<String[]> callback = MainActivity.this;
+
+        /*
+         * The second parameter of the initLoader method below is a Bundle. Optionally, you can
+         * pass a Bundle to initLoader that you can then access from within the onCreateLoader
+         * callback. In our case, we don't actually use the Bundle, but it's here in case we wanted
+         * to.
+         */
+        Bundle bundleForLoader = null;
+
+        /*
+         * Ensures a loader is initialized and active. If the loader doesn't already exist, one is
+         * created and (if the activity/fragment is currently started) starts the loader. Otherwise
+         * the last created loader is re-used.
+         */
+        getSupportLoaderManager().initLoader(loaderId, bundleForLoader, callback);
     }
 
     /**
-     * This method will get the user's preferred location for weather, and then tell some
-     * background method to get the weather data in the background.
+     * Called when the activity is becoming visible to the user.
+     *
+     * Followed by onResume() if the activity comes to the foreground, or onStop() if it becomes
+     * hidden.
      */
-    private void loadWeatherData() {
-        showWeatherDataView();
-        String preferredLocation = SunshinePreferences.getPreferredWeatherLocation(this);
-        new FetchWeatherTask().execute(preferredLocation);
+    @Override
+    protected void onStart() {
+        super.onStart();
+        logAndAppend(ON_START);
+    }
+
+    /**
+     * Called when the activity will start interacting with the user. At this point your activity
+     * is at the top of the activity stack, with user input going to it.
+     *
+     * Always followed by onPause().
+     */
+    @Override
+    protected void onResume() {
+        super.onResume();
+        logAndAppend(ON_RESUME);
+    }
+
+    /**
+     * Called when the system is about to start resuming a previous activity. This is typically
+     * used to commit unsaved changes to persistent data, stop animations and other things that may
+     * be consuming CPU, etc. Implementations of this method must be very quick because the next
+     * activity will not be resumed until this method returns.
+     *
+     * Followed by either onResume() if the activity returns back to the front, or onStop() if it
+     * becomes invisible to the user.
+     */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        logAndAppend(ON_PAUSE);
+    }
+
+    /**
+     * Called when the activity is no longer visible to the user, because another activity has been
+     * resumed and is covering this one. This may happen either because a new activity is being
+     * started, an existing one is being brought in front of this one, or this one is being
+     * destroyed.
+     *
+     * Followed by either onRestart() if this activity is coming back to interact with the user, or
+     * onDestroy() if this activity is going away.
+     */
+    @Override
+    protected void onStop() {
+        super.onStop();
+        logAndAppend(ON_STOP);
+    }
+
+    /**
+     * Called after your activity has been stopped, prior to it being started again.
+     *
+     * Always followed by onStart()
+     */
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        logAndAppend(ON_RESTART);
+    }
+
+    /**
+     * The final call you receive before your activity is destroyed. This can happen either because
+     * the activity is finishing (someone called finish() on it, or because the system is
+     * temporarily destroying this instance of the activity to save space. You can distinguish
+     * between these two scenarios with the isFinishing() method.
+     */
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        logAndAppend(ON_DESTROY);
+    }
+
+    /**
+     * Instantiate and return a new Loader for the given ID.
+     *
+     * @param id The ID whose loader is to be created.
+     * @param loaderArgs Any arguments supplied by the caller.
+     *
+     * @return Return a new Loader instance that is ready to start loading.
+     */
+    @Override
+    public Loader<String[]> onCreateLoader(int id, final Bundle loaderArgs) {
+
+        return new AsyncTaskLoader<String[]>(this) {
+
+            /* This String array will hold and help cache our weather data */
+            String[] mWeatherData = null;
+
+            // COMPLETED (3) Cache the weather data in a member variable and deliver it in onStartLoading.
+            /**
+             * Subclasses of AsyncTaskLoader must implement this to take care of loading their data.
+             */
+            @Override
+            protected void onStartLoading() {
+                if (mWeatherData != null) {
+                    deliverResult(mWeatherData);
+                } else {
+                    mLoadingIndicator.setVisibility(View.VISIBLE);
+                    forceLoad();
+                }
+            }
+
+            /**
+             * This is the method of the AsyncTaskLoader that will load and parse the JSON data
+             * from OpenWeatherMap in the background.
+             *
+             * @return Weather data from OpenWeatherMap as an array of Strings.
+             *         null if an error occurs
+             */
+            @Override
+            public String[] loadInBackground() {
+
+                String locationQuery = SunshinePreferences
+                        .getPreferredWeatherLocation(MainActivity.this);
+
+                URL weatherRequestUrl = NetworkUtils.buildUrl(locationQuery);
+
+                try {
+                    String jsonWeatherResponse = NetworkUtils
+                            .getResponseFromHttpUrl(weatherRequestUrl);
+
+                    String[] simpleJsonWeatherData = OpenWeatherJsonUtils
+                            .getSimpleWeatherStringsFromJson(MainActivity.this, jsonWeatherResponse);
+
+                    return simpleJsonWeatherData;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }
+
+            /**
+             * Sends the result of the load to the registered listener.
+             *
+             * @param data The result of the load
+             */
+            public void deliverResult(String[] data) {
+                mWeatherData = data;
+                super.deliverResult(data);
+            }
+        };
     }
 
     /**
@@ -147,50 +337,44 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
         mRecyclerView.setVisibility(View.INVISIBLE);
     }
 
-    public class FetchWeatherTask extends AsyncTask<String, Void, String[]> {
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            // Set loading indicator visible as data load
-            mLoadingIndicator.setVisibility(View.VISIBLE);
+    /**
+     * Called when a previously created loader has finished its load.
+     *
+     * @param loader The Loader that has finished.
+     * @param data The data generated by the Loader.
+     */
+    @Override
+    public void onLoadFinished(Loader<String[]> loader, String[] data) {
+        mLoadingIndicator.setVisibility(View.INVISIBLE);
+        mForecastAdapter.setWeatherData(data);
+        if (null == data) {
+            showErrorMessage();
+        } else {
+            showWeatherDataView();
         }
+    }
 
-        @Override
-        protected String[] doInBackground(String... params) {
-            if (params.length == 0) {
-                return null;
-            }
+    /**
+     * Called when a previously created loader is being reset, and thus
+     * making its data unavailable.  The application should at this point
+     * remove any references it has to the Loader's data.
+     *
+     * @param loader The Loader that is being reset.
+     */
+    @Override
+    public void onLoaderReset(Loader<String[]> loader) {
+        /*
+         * We aren't using this method in our example application, but we are required to Override
+         * it to implement the LoaderCallbacks<String> interface
+         */
+    }
 
-            String location = params[0];
-            URL weatherRequestURL = NetworkUtils.buildUrl(location);
-
-            try {
-                String jsonWeatherResponse = NetworkUtils.getResponseFromHttpUrl(weatherRequestURL);
-                String[] simpleJSONWeatherData = OpenWeatherJsonUtils
-                        .getSimpleWeatherStringsFromJson(MainActivity.this, jsonWeatherResponse);
-                return  simpleJSONWeatherData;
-            } catch (JSONException e) {
-                e.printStackTrace();
-                return null;
-            } catch (IOException e) {
-                e.printStackTrace();
-                return null;
-            }
-        }
-
-        @Override
-        protected void onPostExecute(String[] weatherData) {
-            mLoadingIndicator.setVisibility(View.INVISIBLE);
-
-            if (weatherData != null) {
-                showWeatherDataView();
-                mForecastAdapter.setWeatherData(weatherData);
-            } else {
-                showErrorMessage();
-            }
-
-        }
+    /**
+     * This method is used when we are resetting data, so that at one point in time during a
+     * refresh of our data, you can see that there is no data showing.
+     */
+    private void invalidateData() {
+        mForecastAdapter.setWeatherData(null);
     }
 
     /**
@@ -233,8 +417,8 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
         int id = item.getItemId();
 
         if (id == R.id.action_refresh) {
-            mForecastAdapter.setWeatherData(null);
-            loadWeatherData();
+            invalidateData();
+            getSupportLoaderManager().restartLoader(FORECAST_LOADER_ID, null, this);
             return true;
         }
 
@@ -244,5 +428,16 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    /**
+     * Logs to the console and appends the lifecycle method name to the TextView so that you can
+     * view the series of method callbacks that are called both from the app and from within
+     * Android Studio's Logcat.
+     *
+     * @param lifecycleEvent The name of the event to be logged.
+     */
+    private void logAndAppend(String lifecycleEvent) {
+        Log.d(TAG, "Lifecycle Event: " + lifecycleEvent);
     }
 }
